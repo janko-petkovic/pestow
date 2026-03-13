@@ -84,13 +84,14 @@ else
 fi
 
 # create the pestow config in the patch folder
-mkdir -p $DOT_PATH/$PATCH/.config/pestow
-create_pestow_environment_file $ENV_PATH
-echo -e "\033[37;2m-> Created pestow config in $PATCH.\033[0m"
+RUN_CMD+="mkdir -p $DOT_PATH/$PATCH/.config/pestow;"
+RUM_CMD+="create_pestow_environment_file $ENV_PATH;"
+RUN_CMD+="echo -e '\033[37;2m-> Created pestow config in $PATCH.\033[0m';"
 
 # aknowledge/init the git repo
 cd $DOT_PATH/
-if ! [ -f .git ]; then
+git status > /dev/null 2>&1
+if [ $? -ne 0 ]; then
   git init; git add --all; git commit -m "initial commit"
 else
   echo -e "\033[37;2m-> Detected .git repository in $DOT_PATH.\033[0m"
