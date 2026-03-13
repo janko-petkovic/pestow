@@ -1,0 +1,19 @@
+#!/usr/bin/bash
+##### this line goes away #####
+HOME=$HOME/pestow-test-env/
+###############################
+
+
+ENV_PATH=$HOME/.config/pestow/environment
+source $ENV_PATH
+
+function apply_patch() {
+  # CHECK THAT THE GIT REPOSITORY HAS BEEN CREATED AND THE COMMIT HAS BEEN
+  # CARRIED OUT
+  PATCH=${1:-"lazarus"}
+
+}
+
+PATCH=lazarus
+# pestow --apply <patch>
+

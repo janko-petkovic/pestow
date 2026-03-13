@@ -1,0 +1,2 @@
+- pestow needs not to overwrite an already present dotfile configuration
+  if it is already there > CHECK IFHOME 
