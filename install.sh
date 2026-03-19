@@ -1,6 +1,26 @@
 #!/usr/bin/bash
 HOME=/home/janko/code/pestow-test-env
 
+BOLD_RED="\033[31;1m"
+C_END="\033[0m"
+
+function pretty_echo() { 
+  LEVEL=$1
+  COLOR=$2
+  STR=$3
+  arrow=:w
+  pads="\n "
+  for ((i=0;i<$LEVEL;i++)) do
+    pads+=" "
+  done
+  echo -ne $COLOR
+  echo -ne $STR | fold -w 10 | sed -e ':a;N;$!ba' -e "s/\n/$pads/g"
+  echo -e $C_END 
+}
+
+pretty_echo 2 $BOLD_RED "-> Pestow installation aborded"
+return 0
+
 function create_pestow_environment_file() {
   echo "# Profile variables:" > $1
   echo "PESTOW_ACTIVE_PATCHES=$PATCH" >> $1
@@ -14,12 +34,9 @@ function create_pestow_environment_file() {
 }
 
 function abort_installation() {
-  echo -e "\033[31;1mPestow Installation aborded.\033[0m"
+  echo -e "\033[31;1mPestow installation aborded.\033[0m"
   exit 1
 }
-
-`
-abort_installation
 
 
 # USER INTERFACE ---------
@@ -45,7 +62,7 @@ PATCH=${PATCH:-"default"}
 
 
 # SETTING UP ---------
-echo -ne "\033[37;2m Checking environment.\033[0m"
+echo -e "\033[37;2mChecking environment.\033[0m"
 RUN_CMD=""
 ENV_PATH=$DOT_PATH/$PATCH/dot-config/pestow/environment
 STOW_FLAGS="--dotfiles --no-fold"
@@ -58,66 +75,68 @@ RUN_CMD+="echo -e '\033[92;1m $INSTALL_PATH/pestow\033[0m';"
 
 # aknowledge/create the dotfiles folder
 if ! [ -d $DOT_PATH ]; then
-  RUN_CMD+="mkdir -p $DOT_PATH;"
-  RUN_CMD+="echo -ne '\033[37;2m-> Created dotfiles directory:\033[0m';"
-  RUN_CMD+="echo -e '\033[34;1m$DOT_PATH\033[0m';"
+  # Create dotfiles folder
+  RUN_CMD+="mkdir -p $DOT_PATH/$PATCH/.config/pestow;"
+  RUN_CMD+="echo -e '\033[37;2m-> Created dotfiles directory:\033[0m';"
+  RUN_CMD+="echo -e '\033[34;1m   $DOT_PATH\033[0m';"
+  RUN_CMD+="echo -e '\033[37;2m-> Created pestow config in $PATCH.\033[0m';"
+  RUN_CMD+="echo -e '\033[37;2m-> Created patch directory:\033[0m';"
+  RUN_CMD+="echo -e '\033[34;1m   $DOT_PATH/$PATCH\033[0m';"
+
+  RUM_CMD+="create_pestow_environment_file $ENV_PATH;"
+  RUN_CMD+="cd $DOT_PATH; git init; git add --all"
+  RUN_CMD+="git commit -m 'Initial commit (by pestow installer)'"
+  RUN_CMD+="echo -e '\033[34;1m-> Initialized .git repo in $PATH\033[0m';"
+  RUN_CMD+="echo -e '\033[34;1m   and committed\033[0m';"
 else
   echo -e "\033[37;2m-> Detected preexisting dotfiles directory.\033[0m"
+  abort_intallation
 fi
 
-# aknowledge/create the dotfiles folder
-if ! [ -d $DOT_PATH ]; then
-  RUN_CMD+="mkdir -p $DOT_PATH;"
-  RUN_CMD+="echo -ne '\033[37;2m-> Created dotfiles directory:\033[0m';"
-  RUN_CMD+="echo -e '\033[34;1m$DOT_PATH\033[0m';"
-else
-  echo -e "\033[37;2m-> Detected preexisting dotfiles directory.\033[0m"
-fi
+
 
 # aknowledge/create the patch folder
 if ! [ -d $DOT_PATH/$PATCH ]; then
-  RUN_CMD+="mkdir -p $DOT_PATH/$PATCH/;"
-  RUN_CMD+="echo -ne '\033[37;2m-> Created patch directory:\033[0m';"
-  RUN_CMD+="echo -e '\033[34;1m$DOT_PATH/$PATCH\033[0m';"
+  RUN_CMD+="git init; git add --all;"
+  RUN_CMD+="git commit -m 'Initial commit (by pestow installer)';"
 else
   echo -e "\033[37;2m-> Detected preexisting patch directory.\033[0m"
 fi
 
 # create the pestow config in the patch folder
-RUN_CMD+="mkdir -p $DOT_PATH/$PATCH/.config/pestow;"
-RUM_CMD+="create_pestow_environment_file $ENV_PATH;"
-RUN_CMD+="echo -e '\033[37;2m-> Created pestow config in $PATCH.\033[0m';"
 
 # aknowledge/init the git repo
 cd $DOT_PATH/
-git status > /dev/null 2>&1
+git_status=$(git status > /dev/null 2>&1)
 if [ $? -ne 0 ]; then
-  git init; git add --all; git commit -m "initial commit"
+  RUN_CMD+="git init; git add --all"
+  RUN_CMD+="git commit -m 'Initial commit (by pestow installer)'"
 else
-  echo -e "\033[37;2m-> Detected .git repository in $DOT_PATH.\033[0m"
-  echo -e "\033[37;2m   I need to commit the changes I made with the\033[0m"
-  echo -en "\033[37;2m   installation. Do you wish to proceed? [Y/n] \033[0m"
-  read answer
-  answer=${answer:-"y"}
-  case $answer in
-    y|Y|yes|Yes) 
-      COMMIT_MSG="Added $PROFILE and pestow configuration"
-      echo -en "\033[37;2m   > Insert commit message (default: $COMMIT_MSG)\033[0m"
-      read commit_msg
-      commit_msg=${commit_msg:-$COMMIT_MSG}
-      git add --all; git commit -m "$commit_msg"
+  toplevel=$(git rev-parse --show-toplevel)
+  echo -ne "\033[37;2m-> $DOT_PATH is already part of the repository.\033[0m"
+  echo -e "\033[37;2m $toplevel\033[0m"
+  if [ "${git_status/"working tree clean"}" = "$git_status" ]; then
+    echo -ne "\033[32;2m--> .git tree contains uncommitted changes. Please\033[0m"
+    echo -ne "\033[32;2m commit them before proceeding with the\033[0m"
+    echo -e "\033[32;2m installation\033[0m"
+    abort_installation
+  else
+    echo -e "\033[37;2m--> .git tree clean, proceeding.\033[0m"
+  fi
+fi
 
-
-source $ENV_PATH
-
-stow \
-  -d $PESTOW_DOT_PATH \
-  $PESTOW_ACTIVE_PATCHES \
-  $PESTOW_STOW_FLAGS \
-  -t $PESTOW_TARGET_PATH
-
-echo -ne "\033[37;2m-> Created and stowed pestow configuration:\033[0m "
-echo -e "\033[37m$(stat --format=%N $PESTOW_TARGET_PATH/.config/pestow/environment)\033[0m"
-
-echo -e "\033[37;1m> Installation succesful!"
-echo ""
+echo $RUN_CMD
+#
+# source $ENV_PATH
+#
+# stow \
+#   -d $PESTOW_DOT_PATH \
+#   $PESTOW_ACTIVE_PATCHES \
+#   $PESTOW_STOW_FLAGS \
+#   -t $PESTOW_TARGET_PATH
+#
+# echo -ne "\033[37;2m-> Created and stowed pestow configuration:\033[0m "
+# echo -e "\033[37m$(stat --format=%N $PESTOW_TARGET_PATH/.config/pestow/environment)\033[0m"
+#
+# echo -e "\033[37;1m> Installation succesful!"
+# echo ""
