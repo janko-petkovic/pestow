@@ -1,27 +1,19 @@
 #!/usr/bin/bash
 HOME=/home/janko/code/pestow-test-env
 
+BOLD_WHITE="\033[37;1m"
 BOLD_RED="\033[31;1m"
+WHITE="\033[37m"
+RED="\033[31m"
+THIN_WHITE="\033[37;2m"
 C_END="\033[0m"
 
-function pretty_echo() { 
-  LEVEL=$1
-  COLOR=$2
-  STR=$3
-  arrow=:w
-  pads="\n "
-  for ((i=0;i<$LEVEL;i++)) do
-    pads+=" "
-  done
-  echo -ne $COLOR
-  echo -ne $STR | fold -w 10 | sed -e ':a;N;$!ba' -e "s/\n/$pads/g"
-  echo -e $C_END 
+function abort_installation() {
+  echo -e "\033[31;1mPestow installation aborded.\033[0m"
+  exit 1
 }
 
-pretty_echo 2 $BOLD_RED "-> Pestow installation aborded"
-return 0
-
-function create_pestow_environment_file() {
+function create_pestowrc() {
   echo "# Profile variables:" > $1
   echo "PESTOW_ACTIVE_PATCHES=$PATCH" >> $1
   echo "" >> $1
@@ -33,97 +25,93 @@ function create_pestow_environment_file() {
   echo "PESTOW_STOW_FLAGS='$(echo "$STOW_FLAGS")'" >> $1
 }
 
-function abort_installation() {
-  echo -e "\033[31;1mPestow installation aborded.\033[0m"
-  exit 1
-}
-
 
 # USER INTERFACE ---------
 # read install path
 echo ""
-echo -e "\033[97;1m--- Pestow 0.1.0 installer. Welcome! :) ---\033[0m"
-echo -ne "\033[37;m> Enter executable install path \033[0m"
-echo -ne "\033[37;2m(default: ~/.local/bin): \033[0m"
-read -p "" INSTALL_PATH
-INSTALL_PATH=${INSTALL_PATH:-"$HOME/.local/bin"}
+echo "--- Pestow 0.1.0 installer. Welcome! :) ---"
 
 # read dotfiles path
-echo -n "> Enter name of the dotfiles directory "
-echo -ne "\033[37;2m(default: ~/dotfiles): \033[0m"
+echo -n "Enter dotfiles absolute path (default: ~/dotfiles):"
 read -p "" DOT_PATH
 DOT_PATH=${DOT_PATH:-"$HOME/dotfiles"}
 
 # read dotfiles patch
-echo -n "> Enter name of the first dotfiles patch "
-echo -ne "\033[37;2m(default: default): \033[0m"
+echo -n "Enter name of the dotfiles patch (default: default):"
 read -p "" PATCH
 PATCH=${PATCH:-"default"}
 
 
+
 # SETTING UP ---------
-echo -e "\033[37;2mChecking environment.\033[0m"
-RUN_CMD=""
-ENV_PATH=$DOT_PATH/$PATCH/dot-config/pestow/environment
+echo ""
+pretty_echo 0 $WHITE "Checking environment.\n"
+
+INSTALL_PATH=${INSTALL_PATH:-"$DOT_PATH/$PATCH/.dot-local/bin"}
+RC_PATH=$DOT_PATH/$PATCH/dot-pestowrc
 STOW_FLAGS="--dotfiles --no-fold"
 TARGET_PATH=$HOME
 
-# install pestow executable
-RUN_CMD+="cp pestow $INSTALL_PATH/pestow;"
-RUN_CMD+="echo -ne '\033[37;2m-> Installed pestow executable in:\033[0m';"
-RUN_CMD+="echo -e '\033[92;1m $INSTALL_PATH/pestow\033[0m';"
+function  {
 
-# aknowledge/create the dotfiles folder
-if ! [ -d $DOT_PATH ]; then
-  # Create dotfiles folder
-  RUN_CMD+="mkdir -p $DOT_PATH/$PATCH/.config/pestow;"
-  RUN_CMD+="echo -e '\033[37;2m-> Created dotfiles directory:\033[0m';"
-  RUN_CMD+="echo -e '\033[34;1m   $DOT_PATH\033[0m';"
-  RUN_CMD+="echo -e '\033[37;2m-> Created pestow config in $PATCH.\033[0m';"
-  RUN_CMD+="echo -e '\033[37;2m-> Created patch directory:\033[0m';"
-  RUN_CMD+="echo -e '\033[34;1m   $DOT_PATH/$PATCH\033[0m';"
-
-  RUM_CMD+="create_pestow_environment_file $ENV_PATH;"
-  RUN_CMD+="cd $DOT_PATH; git init; git add --all"
-  RUN_CMD+="git commit -m 'Initial commit (by pestow installer)'"
-  RUN_CMD+="echo -e '\033[34;1m-> Initialized .git repo in $PATH\033[0m';"
-  RUN_CMD+="echo -e '\033[34;1m   and committed\033[0m';"
-else
-  echo -e "\033[37;2m-> Detected preexisting dotfiles directory.\033[0m"
-  abort_intallation
-fi
+}
 
 
+# First make the directories
+if [ -d $DOT_PATH ]; then
+  echo ">> Found existing dotfiles folder. Checking for repositories."
+  cd $DOT_PATH
 
-# aknowledge/create the patch folder
-if ! [ -d $DOT_PATH/$PATCH ]; then
-  RUN_CMD+="git init; git add --all;"
-  RUN_CMD+="git commit -m 'Initial commit (by pestow installer)';"
-else
-  echo -e "\033[37;2m-> Detected preexisting patch directory.\033[0m"
-fi
+  # Check git repository
+  git_toplevel=git rev-parse --show-toplevel
 
-# create the pestow config in the patch folder
-
-# aknowledge/init the git repo
-cd $DOT_PATH/
-git_status=$(git status > /dev/null 2>&1)
-if [ $? -ne 0 ]; then
-  RUN_CMD+="git init; git add --all"
-  RUN_CMD+="git commit -m 'Initial commit (by pestow installer)'"
-else
-  toplevel=$(git rev-parse --show-toplevel)
-  echo -ne "\033[37;2m-> $DOT_PATH is already part of the repository.\033[0m"
-  echo -e "\033[37;2m $toplevel\033[0m"
-  if [ "${git_status/"working tree clean"}" = "$git_status" ]; then
-    echo -ne "\033[32;2m--> .git tree contains uncommitted changes. Please\033[0m"
-    echo -ne "\033[32;2m commit them before proceeding with the\033[0m"
-    echo -e "\033[32;2m installation\033[0m"
-    abort_installation
+  if [ $? -eq 0 ]; then
+    echo -n ">> Dotfiles folder is already part of a .git repository: "
+    if ! $(git status | grep -q "working tree clean"); then
+      echo "tree is not clean. Commit everything before installing."
+      abort_installation
+    else
+      echo "tree is clean, proceeding with installation."
+    fi
   else
-    echo -e "\033[37;2m--> .git tree clean, proceeding.\033[0m"
+    echo -n ">> Dotfiles folder is not part of repository. Run git init? (y/N)"
+    read -p "" INIT_DOT_PATH
+    INIT_DOT_PATH=${INIT_DOT_PATH:-"n"}
+    case "$INIT_DOT_PATH" in
+      Y|Yes|y|yes) 
+        git init;;
+      N|No|n|no) 
+        echo ">> Dotfiles need to be secured in a repo before installing pestow."
+        abort_installation;;
+      *)
+        echo ">> Invalid input."
+        abort_installation;;
+    esac
   fi
-fi
+
+  if [ -d $INSTALL_DIR ]; then 
+    echo ">> $INSTALL_DIR directory already in place."
+  else
+    mkdir -p $INSTALL_PATH
+    echo ">> Created $INSTALL_DIR"
+  fi
+
+else
+  echo "> Could not find old dotfiles directory."
+  echo ">> Configuring dotfiles filetree."
+
+  create_pestowrc $RC_PATH
+  echo ">> Generated dot-pestowrc"
+  cp pestow $INSTALL_PATH/pestow
+  echo ">> Installed pestow binary."
+  cd $DOT_PATH; git init; git add --all; 
+  git commit -m "Initial commit (by pestow installer)"
+  echo ">> Setup git repository in $DOT_PATH"
+else
+  cd $DOT_PATH
+  if ! [ -d 
+  
+end
 
 echo $RUN_CMD
 #
