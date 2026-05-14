@@ -9,7 +9,7 @@ THIN_WHITE="\033[37;2m"
 C_END="\033[0m"
 
 function abort_installation() {
-  echo -e "\033[31;1mPestow installation aborded.\033[0m"
+  echo -e "\033[31;1mPestow installation aborded. Nothing changed.\033[0m"
   exit 1
 }
 
@@ -45,21 +45,23 @@ PATCH=${PATCH:-"default"}
 
 # SETTING UP ---------
 echo ""
-pretty_echo 0 $WHITE "Checking environment.\n"
+echo "Checking environment."
 
-INSTALL_PATH=${INSTALL_PATH:-"$DOT_PATH/$PATCH/.dot-local/bin"}
+INSTALL_PATH=$DOT_PATH/$PATCH/dot-local/bin
 RC_PATH=$DOT_PATH/$PATCH/dot-pestowrc
 STOW_FLAGS="--dotfiles --no-fold"
 TARGET_PATH=$HOME
 
-function  {
 
-}
-
+# Check if pestow has already been installed
+if [ -f $HOME/.local/bin/pestow ]; then
+  echo "Pestow has already been installed."
+  abort_installation
+fi
 
 # First make the directories
 if [ -d $DOT_PATH ]; then
-  echo ">> Found existing dotfiles folder. Checking for repositories."
+  echo ">> Found existing dotfiles folder. Checking for existing repo."
   cd $DOT_PATH
 
   # Check git repository
@@ -74,57 +76,33 @@ if [ -d $DOT_PATH ]; then
       echo "tree is clean, proceeding with installation."
     fi
   else
-    echo -n ">> Dotfiles folder is not part of repository. Run git init? (y/N)"
-    read -p "" INIT_DOT_PATH
-    INIT_DOT_PATH=${INIT_DOT_PATH:-"n"}
-    case "$INIT_DOT_PATH" in
-      Y|Yes|y|yes) 
-        git init;;
-      N|No|n|no) 
-        echo ">> Dotfiles need to be secured in a repo before installing pestow."
-        abort_installation;;
-      *)
-        echo ">> Invalid input."
-        abort_installation;;
-    esac
+    echo  ">> Dotfiles folder is not part of repository. You need to make"
+    echo  "   it a repository and commit the current state before installing"
+    echo  "   pestow."
+    abort_installation
   fi
 
-  if [ -d $INSTALL_DIR ]; then 
-    echo ">> $INSTALL_DIR directory already in place."
+  if [ -d $INSTALL_PATH ]; then 
+    echo ">> $INSTALL_PATH directory already in place."
   else
     mkdir -p $INSTALL_PATH
-    echo ">> Created $INSTALL_DIR"
+    echo ">> Created $INSTALL_PATH"
   fi
-
 else
   echo "> Could not find old dotfiles directory."
-  echo ">> Configuring dotfiles filetree."
+  mkdir -p $INSTALL_PATH
+  echo ">> Created $INSTALL_PATH"
+  cd $DOT_PATH; git init > /dev/null 2>&1; cd - > /dev/null
+  echo ">> Initialized .git repository in $DOT_PATH"
+fi
 
-  create_pestowrc $RC_PATH
-  echo ">> Generated dot-pestowrc"
-  cp pestow $INSTALL_PATH/pestow
-  echo ">> Installed pestow binary."
-  cd $DOT_PATH; git init; git add --all; 
-  git commit -m "Initial commit (by pestow installer)"
-  echo ">> Setup git repository in $DOT_PATH"
-else
-  cd $DOT_PATH
-  if ! [ -d 
-  
-end
+create_pestowrc $RC_PATH
+echo ">> Created .pestowrc ($RC_PATH/dot-pestowrc)"
+cp pestow $INSTALL_PATH/pestow
+echo ">> Installed pestow binary in $INSTALL_PATH/pestow"
 
-echo $RUN_CMD
-#
-# source $ENV_PATH
-#
-# stow \
-#   -d $PESTOW_DOT_PATH \
-#   $PESTOW_ACTIVE_PATCHES \
-#   $PESTOW_STOW_FLAGS \
-#   -t $PESTOW_TARGET_PATH
-#
-# echo -ne "\033[37;2m-> Created and stowed pestow configuration:\033[0m "
-# echo -e "\033[37m$(stat --format=%N $PESTOW_TARGET_PATH/.config/pestow/environment)\033[0m"
-#
-# echo -e "\033[37;1m> Installation succesful!"
-# echo ""
+cd $DOT_PATH
+stow $STOW_FLAGS $PATCH -t $TARGET_PATH
+echo ">> Stowed $PATCH:"
+echo "   pestow installed in $HOME/.local/bin/pestow"
+echo "   .rcpestow installed in $HOME/.rcpestow"
