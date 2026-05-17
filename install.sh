@@ -9,7 +9,7 @@ THIN_WHITE="\033[37;2m"
 C_END="\033[0m"
 
 function abort_installation() {
-  echo -e "\033[31;1mPestow installation aborded. Nothing changed.\033[0m"
+  echo -e "\033[31;1mPestow installation aborded.\033[0m"
   exit 1
 }
 
@@ -21,8 +21,10 @@ function create_pestowrc() {
   echo "PESTOW_DOT_PATH=$DOT_PATH" >> $1
   echo "PESTOW_TARGET_PATH=$TARGET_PATH" >> $1
   echo "" >> $1
-  echo "# Stow flags:" >> $1
-  echo "PESTOW_STOW_FLAGS='$(echo "$STOW_FLAGS")'" >> $1
+  echo "# Flags:" >> $1
+  echo "PESTOW_PATCH_FLAGS='--no-fold --dotfiles'" >> $1
+  echo "PESTOW_FORCE_FLAGS='--adopt --override=.'" >> $1
+  echo "PESTOW_TARGET_FLAG='-t $HOME'" >> $1
 }
 
 

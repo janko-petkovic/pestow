@@ -1,20 +1,54 @@
 #!/usr/bin/bash
 
 ##### this line goes away #####
-HOME=$HOME/pestow-test-env/
+HOME=$HOME/code/pestow-test-env
 ###############################
 
-
-RC_PATH=$HOME/.pestowrc
-source $RC_PATH
-
-function apply_patch() {
-  # CHECK THAT THE GIT REPOSITORY HAS BEEN CREATED AND THE COMMIT HAS BEEN
-  # CARRIED OUT
-  PATCH=${1:-"lazarus"}
-
+function abort() {
+  echo -e "\033[31;1m[ERROR]\033[0m $1"
 }
 
-PATCH=lazarus
-# pestow --apply <patch>
+function apply_patch_force() {
+  patch_name=$1
 
+  # This is the trick that stow suggests when substituting files with symlinks
+  # from the dotfiles folder (adopt and then git reset)
+  stow $patch_name $PESTOW_PATCH_FLAGS $PESTOW_FORCE_FLAGS $PESTOW_TARGET_FLAG
+  git reset HEAD^
+}
+
+function apply_patch_no_conflict() {
+  patch_name=$1
+  running_patches=${2:-()}
+  local_ignore_path=./$patch_name/.stow-local-ignore
+
+  # Delete the previous ignores
+  # "" > $local_ignore_path
+
+  patch_name=default
+  running_patches=("test")
+  local_ignore_path=./default/.stow-local-ignore
+  echo -n "" > $local_ignore_path
+
+  # Populate with the new ignores
+  for running_patch in ${running_patches[@]}; do
+    offset=${#running_patch}+1
+    files_to_ignore=$(find $running_patch -not -type l,d)
+    for f in $files_to_ignore; do
+      echo ${f:offset} >> $local_ignore_path
+    done
+  done
+
+  stow $patch_name $PESTOW_PATCH_FLAGS $PESTOW_TARGET_FLAG
+}
+
+
+source $HOME/.pestowrc
+cd $PESTOW_DOT_PATH
+
+# Check that the repo is committed and there is nothing else to do
+if ! $(git status | grep -q "working tree clean"); then
+  abort "tree is not clean. Commit everything before patching."
+fi
+
+apply_patch_no_conflict
